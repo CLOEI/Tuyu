@@ -14,7 +14,8 @@
       {
         "title": "Tuyu",
         "width": 900,
-        "height": 500
+        "height": 500,
+        "decorations": false
       }
     ],
     "security": {

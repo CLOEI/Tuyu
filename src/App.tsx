@@ -27,8 +27,19 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 
 const appWindow = getCurrentWindow();
 
+type AppDetail = {
+  name: string;
+  package_name: string;
+  version: string;
+  min_sdk: string;
+  target_sdk: string;
+  is_32bit: boolean;
+  is_64bit: boolean;
+  icon_base64?: string | null;
+}
+
 function App() {
-  const [_, setPath] = useState<string | null>(null);
+  const [appDetail, setAppDetail] = useState<AppDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [javaPath, setJavaPath] = useState<string | null>(null);
   
@@ -37,9 +48,11 @@ function App() {
 
     (async () => {
       unlistenDragAndDrop = await listen<{ paths: string[], position: PhysicalPosition }>("tauri://drag-drop", (e) => {
-        setPath(e.payload.paths[0]);
+        invoke<AppDetail>("get_apk_detail", { path: e.payload.paths[0] }).then((data) => {
+          setAppDetail(data);
+        })
       })
-    })
+    })();
 
     invoke<string|null>("get_java").then((path) => {
       if (path) {
@@ -129,22 +142,92 @@ function App() {
           </Button>
         </div>
       </div>
-      <Separator className='my-1'/>
-      <div className='h-full flex-1 flex items-center justify-center'>
-        <div className='flex flex-col items-center'>
-          {loading ? (
-            <>
-              <Box size={100} />
-              <p className='text-muted-foreground'>Checking binaries...</p>
-            </>
-          ) : (
-            <>
-              <FaAndroid size={100} />
-              <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
-            </>
-          )}
+      <Separator className='mt-1'/>
+      {!appDetail ? (
+        <div className='h-full flex-1 flex items-center justify-center'>
+          <div className='flex flex-col items-center'>
+            {loading ? (
+              <>
+                <Box size={100} />
+                <p className='text-muted-foreground'>Checking binaries...</p>
+              </>
+            ) : (
+              <>
+                  <>
+                    <FaAndroid size={100} />
+                    <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
+                  </>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+        ) : (
+          <div className='flex w-full h-full'>
+            <div className='flex-1'>
+              {appDetail.icon_base64 && (
+                <img src={`data:image/png;base64,${appDetail.icon_base64}`} alt="App Icon" className='w-16 h-16 mr-4 rounded-md'/>
+              )}
+              <div className='flex flex-col space-y-2'>
+                <div className='grid grid-cols-2 gap-4'>
+                  <div>
+                    <p className='font-semibold'>Name:</p>
+                    <p>{appDetail.name}</p>
+                  </div>
+                  <div>
+                    <p className='font-semibold'>Package Name:</p>
+                    <p>{appDetail.package_name}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-4'>
+                  <div>
+                    <p className='font-semibold'>Min SDK:</p>
+                    <p>{appDetail.min_sdk}</p>
+                  </div>
+                  <div>
+                    <p className='font-semibold'>Target SDK:</p>
+                    <p>{appDetail.target_sdk}</p>
+                  </div>
+                </div>
+                <div className='grid grid-cols-2 gap-4'>
+                  <div>
+                    <p className='font-semibold'>Armeabi-v7a:</p>
+                    <p>{appDetail.is_32bit ? "Yes" : "No"}</p>
+                  </div>
+                  <div>
+                    <p className='font-semibold'>Arm64-v8a:</p>
+                    <p>{appDetail.is_64bit ? "Yes" : "No"}</p>
+                  </div>
+                </div>
+                <div>
+                  <p className='font-semibold'>Version:</p>
+                  <p>{appDetail.version}</p>
+                </div>
+              </div>
+              <div className='mt-4 flex flex-wrap gap-2'>
+                <Button onClick={() => { console.log("Decompiling...") }}>
+                  Decompile
+                </Button>
+                <Button onClick={() => { console.log("Compiling...") }}>
+                  Compile
+                </Button>
+                <Button onClick={() => { console.log("Signing...") }}>
+                  Sign
+                </Button>
+                <Button onClick={() => { console.log("Converting xapk to apk...") }}>
+                  Convert xapk to apk
+                </Button>
+                <Button onClick={() => { console.log("Installing...") }}>
+                  Install
+                </Button>
+              </div>
+            </div>
+            <div className='flex-1 border-border border-l-2 p-2 ml-4'>
+              <div className='overflow-y-auto'>
+              </div>
+            </div>
+          </div>
+        )
+      }
       <AlertDialog open={loading == false && javaPath == null}>
         <AlertDialogContent>
           <AlertDialogHeader>

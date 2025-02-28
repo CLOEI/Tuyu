@@ -1,4 +1,4 @@
-import { getCurrentWindow } from '@tauri-apps/api/window';
+import { DragDropEvent, getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
 import "./App.css";
 import { Button } from '@/components/ui/button';
 import { Settings, Smartphone, X } from 'lucide-react';
@@ -11,14 +11,45 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { FaAndroid } from "react-icons/fa";
+import { listen, UnlistenFn } from '@tauri-apps/api/event';
+import { useEffect, useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 const appWindow = getCurrentWindow();
 
 function App() {
+  const [path, setPath] = useState<string | null>(null);
+  
+  useEffect(() => {
+    let unlistenDragAndDrop: UnlistenFn;
+
+    (async () => {
+      unlistenDragAndDrop = await listen<{ paths: string[], position: PhysicalPosition }>("tauri://drag-drop", (e) => {
+        setPath(e.payload.paths[0]);
+      })
+    })
+
+    return () => {
+      if (unlistenDragAndDrop) {
+        unlistenDragAndDrop();
+      }
+    }
+  }, []);
+
   return (
     <main className='p-1 flex flex-col h-screen'>
       <div className="w-full flex justify-between h-10" onMouseDown={(e) => {
-        if (e.buttons === 1) {
+        if (e.buttons === 1 && !(e.target instanceof HTMLButtonElement)) {
           e.detail === 2
             ? appWindow.toggleMaximize()
             : appWindow.startDragging();
@@ -26,15 +57,33 @@ function App() {
       }}>
         <div className='flex items-center space-x-1'>
           <h1 className='font-mono'>TUYU</h1>
-          <Button variant="ghost" size="sm" className='font-mono'>
-            About
-          </Button>
-          <Button variant="ghost" size="sm" className='font-mono'>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className='font-mono'>
+                About
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>About</AlertDialogTitle>
+                <AlertDialogDescription>
+                 <div>
+                    <p className='text-muted-foreground font-mono'>TUYU</p>
+                    <p className='text-muted-foreground font-mono'>Version 1.0.0</p>
+                 </div>
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogAction>Close</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+          <Button variant="ghost" size="sm" className='font-mono' disabled>
             Help
           </Button>
         </div>
         <div>
-          <Button onClick={() => appWindow.close()} size="icon" variant="ghost" className='hover:bg-red-500'>
+          <Button onClick={() => { appWindow.close(); }} size="icon" variant="ghost" className='hover:bg-red-500'>
             <X />
           </Button>
         </div>

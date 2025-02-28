@@ -1,22 +1,20 @@
-import { DragDropEvent, getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
+import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
 import "./App.css";
 import { Button } from '@/components/ui/button';
-import { Settings, Smartphone, X } from 'lucide-react';
+import { Box, Settings, Smartphone, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
-  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { FaAndroid } from "react-icons/fa";
+import { FaAndroid, FaJava } from "react-icons/fa";
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
 import { useEffect, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
-  AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
@@ -24,11 +22,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { invoke } from '@tauri-apps/api/core';
+import { openUrl } from '@tauri-apps/plugin-opener';
 
 const appWindow = getCurrentWindow();
 
 function App() {
-  const [path, setPath] = useState<string | null>(null);
+  const [_, setPath] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [javaPath, setJavaPath] = useState<string | null>(null);
   
   useEffect(() => {
     let unlistenDragAndDrop: UnlistenFn;
@@ -37,6 +39,13 @@ function App() {
       unlistenDragAndDrop = await listen<{ paths: string[], position: PhysicalPosition }>("tauri://drag-drop", (e) => {
         setPath(e.payload.paths[0]);
       })
+    })
+
+    invoke<string|null>("get_java").then((path) => {
+      if (path) {
+        setLoading(false);
+        setJavaPath(path);
+      }
     })
 
     return () => {
@@ -67,10 +76,20 @@ function App() {
               <AlertDialogHeader>
                 <AlertDialogTitle>About</AlertDialogTitle>
                 <AlertDialogDescription>
-                 <div>
-                    <p className='text-muted-foreground font-mono'>TUYU</p>
-                    <p className='text-muted-foreground font-mono'>Version 1.0.0</p>
-                 </div>
+                <div className='space-y-2'>
+                  <span className='text-lg font-bold'>TUYU</span>
+                  <span className='text-sm text-muted-foreground'>0.1.0</span>
+                  <div className='mt-2'>
+                  <span className='text-sm font-semibold'>Dependencies:</span>
+                  <ul className='list-disc list-inside text-sm text-muted-foreground'>
+                    <li>aapt2 by Google</li>
+                    <li>zipalign by Google</li>
+                    <li>apksigner by Google</li>
+                    <li>apkeditor by REAndroid</li>
+                    <li>apktool by iBotPeaches</li>
+                  </ul>
+                  </div>
+                </div>
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -113,10 +132,35 @@ function App() {
       <Separator className='my-1'/>
       <div className='h-full flex-1 flex items-center justify-center'>
         <div className='flex flex-col items-center'>
-          <FaAndroid size={100} />
-          <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
+          {loading ? (
+            <>
+              <Box size={100} />
+              <p className='text-muted-foreground'>Checking binaries...</p>
+            </>
+          ) : (
+            <>
+              <FaAndroid size={100} />
+              <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
+            </>
+          )}
         </div>
       </div>
+      <AlertDialog open={loading == false && javaPath == null}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Binary not found</AlertDialogTitle>
+            <AlertDialogDescription>
+                <div className='flex flex-col items-center space-y-2'>
+                <FaJava size={64} />
+                <span className='text-muted-foreground font-mono text-center'>Java is not installed. Please install Java to proceed.</span>
+                <Button variant="outline" onClick={() => { openUrl("https://www.java.com/en/download/") }}>
+                  Download Java
+                </Button>
+                </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+        </AlertDialogContent>
+    </AlertDialog>
     </main>
   );
 }

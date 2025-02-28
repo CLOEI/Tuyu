@@ -5,3 +5,8 @@
 Android ADB client & utilities
 </p>
 </div>
+
+
+### Requirement
+- JRE
+- ADB

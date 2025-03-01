@@ -8,7 +8,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::get_java,
             commands::get_adb,
-            commands::get_apk_detail
+            commands::get_app_detail,
+            commands::extract_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

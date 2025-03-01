@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/select"
 import { FaAndroid, FaJava } from "react-icons/fa";
 import { listen, UnlistenFn } from '@tauri-apps/api/event';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,10 +20,10 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { ScrollArea } from './components/ui/scroll-area';
 
 const appWindow = getCurrentWindow();
 
@@ -38,21 +38,54 @@ type AppDetail = {
   icon_base64?: string | null;
 }
 
+type Log = {
+  level: string;
+  time: string;
+  message: string;
+}
+
 function App() {
   const [appDetail, setAppDetail] = useState<AppDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [javaPath, setJavaPath] = useState<string | null>(null);
+  const [appPath, setAppPath] = useState<string | null>(null);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [log, setLog] = useState<Log[]>([]);
+  const isDragAndDropListenerRegistered = useRef(false);
+  const isLogInfoListenerRegistered = useRef(false);
+  const isLogErrorListenerRegistered = useRef(false);
+  const logEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
     let unlistenDragAndDrop: UnlistenFn;
 
     (async () => {
+      if (isDragAndDropListenerRegistered.current) return;
+      isDragAndDropListenerRegistered.current = true;
       unlistenDragAndDrop = await listen<{ paths: string[], position: PhysicalPosition }>("tauri://drag-drop", (e) => {
-        invoke<AppDetail>("get_apk_detail", { path: e.payload.paths[0] }).then((data) => {
+        setAppPath(e.payload.paths[0]);
+        setLog([])
+        invoke<AppDetail>("get_app_detail", { appPath: e.payload.paths[0] }).then((data) => {
+          setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: `App detail fetched for ${data.name}` }]);
           setAppDetail(data);
         })
       })
     })();
+
+    if (!isLogInfoListenerRegistered.current) {
+      isLogInfoListenerRegistered.current = true;
+      listen<string>("log-info", (e) => {
+        console.log(e.payload)
+        setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: e.payload.slice(2, e.payload.length) }]);
+      })
+    }
+
+    if (!isLogErrorListenerRegistered.current) {
+      isLogErrorListenerRegistered.current = true;
+      listen<string>("log-error", (e) => {
+        setLog((prev) => [...prev, { level: "Error", time: new Date().toLocaleTimeString(), message: e.payload.slice(2, e.payload.length) }]);
+      })
+    }
 
     invoke<string|null>("get_java").then((path) => {
       if (path) {
@@ -64,13 +97,20 @@ function App() {
     return () => {
       if (unlistenDragAndDrop) {
         unlistenDragAndDrop();
+        isDragAndDropListenerRegistered.current = false;
       }
     }
   }, []);
 
+  useEffect(() => {
+    if (logEndRef.current) {
+      logEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [log]);
+
   return (
     <main className='p-1 flex flex-col h-screen'>
-      <div className="w-full flex justify-between h-10" onMouseDown={(e) => {
+      <div className="w-full flex justify-between h-10 flex-shrink-0" onMouseDown={(e) => {
         if (e.buttons === 1 && !(e.target instanceof HTMLButtonElement)) {
           e.detail === 2
             ? appWindow.toggleMaximize()
@@ -79,37 +119,9 @@ function App() {
       }}>
         <div className='flex items-center space-x-1'>
           <h1 className='font-mono'>TUYU</h1>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className='font-mono'>
-                About
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>About</AlertDialogTitle>
-                <AlertDialogDescription>
-                <div className='space-y-2'>
-                  <span className='text-lg font-bold'>TUYU</span>
-                  <span className='text-sm text-muted-foreground'>0.1.0</span>
-                  <div className='mt-2'>
-                  <span className='text-sm font-semibold'>Dependencies:</span>
-                  <ul className='list-disc list-inside text-sm text-muted-foreground'>
-                    <li>aapt2 by Google</li>
-                    <li>zipalign by Google</li>
-                    <li>apksigner by Google</li>
-                    <li>apkeditor by REAndroid</li>
-                    <li>apktool by iBotPeaches</li>
-                  </ul>
-                  </div>
-                </div>
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogAction>Close</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+          <Button variant="ghost" size="sm" className='font-mono' onClick={() => { setAboutOpen(true) }}>
+            About
+          </Button>
           <Button variant="ghost" size="sm" className='font-mono' disabled>
             Help
           </Button>
@@ -120,7 +132,7 @@ function App() {
           </Button>
         </div>
       </div>
-      <div className='flex items-center justify-between h-10'>
+      <div className='flex items-center justify-between h-10 flex-shrink-0'>
         <div className='flex items-center space-x-1'>
           <Select disabled>
             <SelectTrigger className="w-[180px]">
@@ -162,8 +174,8 @@ function App() {
           </div>
         </div>
         ) : (
-          <div className='flex w-full h-full'>
-            <div className='flex-1'>
+          <div className='grid grid-cols-[50%,50%] w-full h-full'>
+            <div>
               {appDetail.icon_base64 && (
                 <img src={`data:image/png;base64,${appDetail.icon_base64}`} alt="App Icon" className='w-16 h-16 mr-4 rounded-md'/>
               )}
@@ -204,27 +216,36 @@ function App() {
                 </div>
               </div>
               <div className='mt-4 flex flex-wrap gap-2'>
-                <Button onClick={() => { console.log("Decompiling...") }}>
+                <Button onClick={() => {
+                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting decompilation..." }]);
+                  invoke("extract_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                 }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Decompile
                 </Button>
-                <Button onClick={() => { console.log("Compiling...") }}>
+                <Button onClick={() => { console.log("Compiling...") }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Compile
                 </Button>
-                <Button onClick={() => { console.log("Signing...") }}>
+                <Button onClick={() => { console.log("Signing...") }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Sign
                 </Button>
-                <Button onClick={() => { console.log("Converting xapk to apk...") }}>
+                <Button onClick={() => { console.log("Converting xapk to apk...") }} disabled={!(appPath?.includes(".xapk"))}>
                   Convert xapk to apk
                 </Button>
-                <Button onClick={() => { console.log("Installing...") }}>
+                <Button onClick={() => { console.log("Installing...") }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Install
                 </Button>
               </div>
             </div>
-            <div className='flex-1 border-border border-l-2 p-2 ml-4'>
-              <div className='overflow-y-auto'>
-              </div>
-            </div>
+            <ScrollArea className="h-[calc(100vh-5rem-1px-0.50rem)] w-full border border-l-1 px-2">
+              {log.map((log, index) => (
+                <div key={index} className='grid grid-cols-[auto_auto_1fr] gap-x-2 items-start'>
+                  <span className='text-muted-foreground whitespace'>[{log.time}]</span>
+                  <span className='text-muted-foreground font-semibold'>{log.level}:</span>
+                  <span className='break-all'>{log.message}</span>
+                </div>
+              ))}
+              <div ref={logEndRef} />
+            </ScrollArea>
           </div>
         )
       }
@@ -243,7 +264,33 @@ function App() {
             </AlertDialogDescription>
           </AlertDialogHeader>
         </AlertDialogContent>
-    </AlertDialog>
+      </AlertDialog>
+      <AlertDialog open={aboutOpen} onOpenChange={(open) => { setAboutOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>About</AlertDialogTitle>
+            <AlertDialogDescription>
+            <div className='space-y-2'>
+              <span className='text-lg font-bold'>TUYU</span>
+              <span className='text-sm text-muted-foreground'>0.1.0</span>
+              <div className='mt-2'>
+              <span className='text-sm font-semibold'>Dependencies:</span>
+              <ul className='list-disc list-inside text-sm text-muted-foreground'>
+                <li>aapt2 by Google</li>
+                <li>zipalign by Google</li>
+                <li>apksigner by Google</li>
+                <li>apkeditor by REAndroid</li>
+                <li>apktool by iBotPeaches</li>
+              </ul>
+              </div>
+            </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

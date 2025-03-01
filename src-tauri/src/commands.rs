@@ -1,5 +1,6 @@
-use std::{fs::File, io::Read};
+use std::{fs::File, io::{BufRead, Read}};
 
+use tauri::Emitter;
 use which::which;
 use zip::ZipArchive;
 use base64::{engine::general_purpose, Engine};
@@ -19,10 +20,74 @@ pub struct AppDetail {
 }
 
 #[tauri::command]
-pub fn get_apk_detail(path: String) -> AppDetail {
+pub fn extract_app(handle: tauri::AppHandle, app_path: String, name: String) {
+    let apktool_path = std::path::Path::new("binaries/apktool.jar");
+    if !apktool_path.exists() {
+        handle.emit("log", "apktool.jar not found").unwrap();
+        return;
+    }
+
+    let mut cmd = std::process::Command::new("java")
+        .args(&["-jar", apktool_path.to_str().unwrap(), "d", &app_path, "-o", format!("decompiled/{}", name).as_str(), "-f"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to execute apktool");
+
+    let stdout = cmd.stdout.take().expect("failed to get stdout");
+    let stderr = cmd.stderr.take().expect("failed to get stderr");
+
+    let handle_clone = handle.clone();
+    std::thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stdout);
+        let mut buffer = String::new();
+        while reader.read_line(&mut buffer).unwrap() > 0 {
+            handle_clone.emit("log-info", buffer.trim()).unwrap();
+            buffer.clear();
+        }
+    });
+
+    let handle_clone = handle.clone();
+    std::thread::spawn(move || {
+        let mut reader = std::io::BufReader::new(stderr);
+        let mut buffer = String::new();
+        while reader.read_line(&mut buffer).unwrap() > 0 {
+            handle_clone.emit("log-error", buffer.trim()).unwrap();
+            buffer.clear();
+        }
+    });
+
+    std::thread::spawn(move || {
+        let status = cmd.wait().expect("failed to wait on child");
+        if status.success() {
+            handle.emit("log-info", "I: App decompiled successfully").unwrap();
+        } else {
+            handle.emit("log-error", "E: Failed to decompile app").unwrap();
+        }
+    });
+
+}
+
+#[tauri::command]
+pub fn get_app_detail(app_path: String) -> AppDetail {
+    let path = std::path::Path::new(&app_path);
+    
+    if path.is_dir() {
+        panic!("Not Implemented!")
+    } else {
+        match path.extension() {
+            Some(ext) => match ext.to_str().unwrap() {
+                "apk" => {},
+                "xapk" => {},
+                _ => panic!("Not Implemented!")
+            }
+            None => panic!("Not Implemented!")
+        }
+    }
+
     let aapt2_path = get_aapt2().expect("aapt2 not found");
     let output = std::process::Command::new(aapt2_path)
-        .args(&["dump", "badging", &path])
+        .args(&["dump", "badging", &path.to_str().unwrap()])
         .output()
         .expect("failed to execute aapt2");
 

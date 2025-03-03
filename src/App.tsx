@@ -75,15 +75,14 @@ function App() {
     if (!isLogInfoListenerRegistered.current) {
       isLogInfoListenerRegistered.current = true;
       listen<string>("log-info", (e) => {
-        console.log(e.payload)
-        setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: e.payload.slice(2, e.payload.length) }]);
+        setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: e.payload }]);
       })
     }
 
     if (!isLogErrorListenerRegistered.current) {
       isLogErrorListenerRegistered.current = true;
       listen<string>("log-error", (e) => {
-        setLog((prev) => [...prev, { level: "Error", time: new Date().toLocaleTimeString(), message: e.payload.slice(2, e.payload.length) }]);
+        setLog((prev) => [...prev, { level: "Error", time: new Date().toLocaleTimeString(), message: e.payload }]);
       })
     }
 
@@ -222,7 +221,10 @@ function App() {
                  }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Decompile
                 </Button>
-                <Button onClick={() => { console.log("Compiling...") }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
+                <Button onClick={() => {
+                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting compilation..." }]);
+                  invoke("compile_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Compile
                 </Button>
                 <Button onClick={() => { console.log("Signing...") }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>

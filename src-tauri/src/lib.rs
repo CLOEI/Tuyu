@@ -10,6 +10,7 @@ pub fn run() {
             commands::get_adb,
             commands::get_app_detail,
             commands::extract_app,
+            commands::compile_app,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

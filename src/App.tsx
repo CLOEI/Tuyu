@@ -39,7 +39,6 @@ type AppDetail = {
 }
 
 type Log = {
-  level: string;
   time: string;
   message: string;
 }
@@ -52,8 +51,7 @@ function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [log, setLog] = useState<Log[]>([]);
   const isDragAndDropListenerRegistered = useRef(false);
-  const isLogInfoListenerRegistered = useRef(false);
-  const isLogErrorListenerRegistered = useRef(false);
+  const isLogListenerRegistered = useRef(false);
   const logEndRef = useRef<HTMLDivElement>(null);
   
   useEffect(() => {
@@ -66,23 +64,16 @@ function App() {
         setAppPath(e.payload.paths[0]);
         setLog([])
         invoke<AppDetail>("get_app_detail", { appPath: e.payload.paths[0] }).then((data) => {
-          setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: `App detail fetched for ${data.name}` }]);
+          setLog((prev) => [...prev, { time: new Date().toLocaleTimeString(), message: `App detail fetched for ${data.name}` }]);
           setAppDetail(data);
         })
       })
     })();
 
-    if (!isLogInfoListenerRegistered.current) {
-      isLogInfoListenerRegistered.current = true;
-      listen<string>("log-info", (e) => {
-        setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: e.payload }]);
-      })
-    }
-
-    if (!isLogErrorListenerRegistered.current) {
-      isLogErrorListenerRegistered.current = true;
-      listen<string>("log-error", (e) => {
-        setLog((prev) => [...prev, { level: "Error", time: new Date().toLocaleTimeString(), message: e.payload }]);
+    if (!isLogListenerRegistered.current) {
+      isLogListenerRegistered.current = true;
+      listen<string>("log", (e) => {
+        setLog((prev) => [...prev, { time: new Date().toLocaleTimeString(), message: e.payload }]);
       })
     }
 
@@ -218,7 +209,7 @@ function App() {
                 <Button onClick={() => {
                   setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting decompilation..." }]);
                   invoke("extract_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
-                 }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
+                 }} disabled={!(appPath?.includes(".apk") || !appPath?.includes(".xapk") && appPath?.includes(".apk"))}>
                   Decompile
                 </Button>
                 <Button onClick={() => {
@@ -227,13 +218,16 @@ function App() {
                 }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Compile
                 </Button>
-                <Button onClick={() => { console.log("Signing...") }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
+                <Button onClick={() => { console.log("Signing...") }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
                   Sign
                 </Button>
-                <Button onClick={() => { console.log("Converting xapk to apk...") }} disabled={!(appPath?.includes(".xapk"))}>
-                  Convert xapk to apk
+                <Button onClick={() => { 
+                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting merge..." }]);
+                  invoke("merge_xapk", { xapkPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                 }} disabled={!(appPath?.includes(".xapk"))}>
+                  Merge xapk to apk
                 </Button>
-                <Button onClick={() => { console.log("Installing...") }} disabled={!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
+                <Button onClick={() => { console.log("Installing...") }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
                   Install
                 </Button>
               </div>
@@ -241,8 +235,7 @@ function App() {
             <ScrollArea className="h-[calc(100vh-5rem-1px-0.50rem)] w-full border border-l-1 px-2">
               {log.map((log, index) => (
                 <div key={index} className='grid grid-cols-[auto_auto_1fr] gap-x-2 items-start'>
-                  <span className='text-muted-foreground whitespace'>[{log.time}]</span>
-                  <span className='text-muted-foreground font-semibold'>{log.level}:</span>
+                  <span className='text-muted-foreground whitespace'>[{log.time}] </span>
                   <span className='break-all'>{log.message}</span>
                 </div>
               ))}

@@ -11,6 +11,7 @@ pub fn run() {
             commands::get_app_detail,
             commands::extract_app,
             commands::compile_app,
+            commands::merge_xapk,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -116,7 +116,7 @@ pub fn get_app_detail_from_dir(app_path: String) -> Option<AppDetail> {
 
     let apktool_data: serde_yaml::Value = serde_yaml::from_str(&std::fs::read_to_string(apktool_yml).ok()?).ok()?;
     let mut app_detail = AppDetail {
-        version: apktool_data["versionInfo"]["versionCode"].as_i64()?.to_string(),
+        version: apktool_data["versionInfo"]["versionName"].as_f64()?.to_string(),
         min_sdk: apktool_data["sdkInfo"]["minSdkVersion"].as_i64()?.to_string(),
         target_sdk: apktool_data["sdkInfo"]["targetSdkVersion"].as_i64()?.to_string(),
         ..Default::default()
@@ -124,18 +124,35 @@ pub fn get_app_detail_from_dir(app_path: String) -> Option<AppDetail> {
     
     let manifest_content = std::fs::read_to_string(&manifest).ok()?;
     let doc = roxmltree::Document::parse(&manifest_content).ok()?;
-    
+
     app_detail.package_name = doc.descendants().find(|n| n.has_tag_name("manifest"))?.attribute("package")?.to_string();
-    app_detail.name = doc.descendants().find(|n| n.has_tag_name("application"))?.attribute("android:label")?.to_string();
+    app_detail.name = doc.descendants().find(|n| n.has_tag_name("application"))?.attributes().find(|attr| attr.name().ends_with("label"))?.value().to_string();
+
+    if app_detail.name.starts_with("@string/") {
+        let string_name = app_detail.name.trim_start_matches("@string/");
+        let strings_path = Path::new(&app_path).join("res/values/strings.xml");
+        if strings_path.exists() {
+            let strings_content = std::fs::read_to_string(&strings_path).ok()?;
+            let strings_doc = roxmltree::Document::parse(&strings_content).ok()?;
+            app_detail.name = strings_doc.descendants().find(|n| n.has_tag_name("string") && n.attribute("name") == Some(string_name))?.text().unwrap().to_string();
+        }
+    }
     
-    if let Some(icon_reference) = doc.descendants().find(|n| n.has_tag_name("application"))?.attribute("android:icon") {
-        let icon_dirs = ["mipmap", "drawable"];
-        for folder in &icon_dirs {
-            let icon_path = res_path.join(format!("{}/{}.png", folder, icon_reference.trim_start_matches("@mipmap/").trim_start_matches("@drawable/")));
-            if icon_path.exists() {
-                let icon_data = std::fs::read(icon_path).ok()?;
-                app_detail.icon_base64 = Some(general_purpose::STANDARD.encode(&icon_data));
-                break;
+    if let Some(icon_reference) = doc.descendants().find(|n| n.has_tag_name("application"))?.attributes().find(|attr| attr.name().ends_with("icon")){
+        let icon_name = icon_reference.value().trim_start_matches("@mipmap/").trim_start_matches("@drawable/");
+        
+        if let Ok(entries) = std::fs::read_dir(&res_path) {
+            for entry in entries.flatten() {
+                let folder_name = entry.file_name().to_string_lossy().to_string();
+                if folder_name.starts_with("mipmap") || folder_name.starts_with("drawable") {
+                    let icon_path = entry.path().join(format!("{}.png", icon_name));
+                    if icon_path.exists() {
+                        if let Ok(icon_data) = std::fs::read(&icon_path) {
+                            app_detail.icon_base64 = Some(general_purpose::STANDARD.encode(&icon_data));
+                            break;
+                        }
+                    }
+                }
             }
         }
     }
@@ -153,21 +170,28 @@ pub fn get_app_detail_from_dir(app_path: String) -> Option<AppDetail> {
     Some(app_detail)
 }
 
-
-pub fn run_apktool_command(handle: AppHandle, args: &[&str], success_msg: String, error_msg: String) {
-    let apktool_path = Path::new("binaries/apktool.jar");
-    if !apktool_path.exists() {
-        handle.emit("log-error", "apktool.jar not found").unwrap();
+pub fn run_java_tool(
+    handle: AppHandle,
+    tool_name: &str,
+    args: &[&str],
+    success_msg: String,
+    error_msg: String,
+) {
+    let tool_path = format!("binaries/{}.jar", tool_name);
+    let tool_path = Path::new(&tool_path);
+    
+    if !tool_path.exists() {
+        handle.emit("log-error", format!("{}.jar not found", tool_name)).unwrap();
         return;
     }
 
     let mut cmd = Command::new("java")
-        .args(&["-jar", apktool_path.to_str().unwrap()])
+        .args(&["-jar", tool_path.to_str().unwrap()])
         .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .expect("Failed to start Apktool");
+        .expect(&format!("Failed to start {}", tool_name));
 
     let stdout = cmd.stdout.take().expect("Failed to get stdout");
     let stderr = cmd.stderr.take().expect("Failed to get stderr");
@@ -176,7 +200,7 @@ pub fn run_apktool_command(handle: AppHandle, args: &[&str], success_msg: String
     std::thread::spawn(move || {
         let reader = BufReader::new(stdout);
         for line in reader.lines().flatten() {
-            handle_clone.emit("log-info", line.trim()).unwrap();
+            handle_clone.emit("log", line.trim()).unwrap();
         }
     });
 
@@ -184,16 +208,16 @@ pub fn run_apktool_command(handle: AppHandle, args: &[&str], success_msg: String
     std::thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines().flatten() {
-            handle_clone.emit("log-error", line.trim()).unwrap();
+            handle_clone.emit("log", line.trim()).unwrap();
         }
     });
 
     std::thread::spawn(move || {
         let status = cmd.wait().expect("Failed to wait on child process");
         if status.success() {
-            handle.emit("log-info", success_msg).unwrap();
+            handle.emit("log", success_msg).unwrap();
         } else {
-            handle.emit("log-error", error_msg).unwrap();
+            handle.emit("log", error_msg).unwrap();
         }
     });
 }

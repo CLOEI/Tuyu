@@ -22,6 +22,39 @@ pub fn get_aapt2() -> Option<String> {
     which_in("aapt2", Some("binaries"), std::env::current_dir().unwrap()).ok().map(|path| path.to_string_lossy().to_string())
 }
 
+pub fn get_app_detail_from_xapk(app_path: String) -> Option<AppDetail> {
+    let path = Path::new(&app_path);
+    let mut app_detail = AppDetail::default();
+
+    if let Ok(file) = File::open(&path) {
+        if let Ok(mut archive) = ZipArchive::new(file) {
+            let mut icon_path = String::new();
+            if let Ok(mut manifest_file) = archive.by_name("manifest.json") {
+                let mut manifest_data = String::new();
+                if manifest_file.read_to_string(&mut manifest_data).is_ok() {
+                    let manifest: serde_json::Value = serde_json::from_str(&manifest_data).expect("failed to parse manifest.json");
+                    app_detail.name = manifest["name"].as_str().expect("failed to get app name").to_string();
+                    app_detail.package_name = manifest["package_name"].as_str().expect("failed to get package name").to_string();
+                    app_detail.version = manifest["version_name"].as_str().expect("failed to get version code").to_string();
+                    app_detail.min_sdk = manifest["min_sdk_version"].as_str().expect("failed to get min sdk version").to_string();
+                    app_detail.target_sdk = manifest["target_sdk_version"].as_str().expect("failed to get target sdk version").to_string();
+                    icon_path = manifest["icon"].as_str().expect("failed to get icon path").to_string();
+                    app_detail.is_32bit = manifest["split_configs"].as_array().expect("failed to get split configs").iter().any(|config| config.as_str().expect("failed to get config") == "config.armeabi_v7a");
+                    app_detail.is_64bit = manifest["split_configs"].as_array().expect("failed to get split configs").iter().any(|config| config.as_str().expect("failed to get config") == "config.arm64_v8a");
+                }
+            }
+            if let Ok(mut icon_file) = archive.by_name(&icon_path) {
+                let mut icon_data = Vec::new();
+                if icon_file.read_to_end(&mut icon_data).is_ok() {
+                    app_detail.icon_base64 = Some(general_purpose::STANDARD.encode(&icon_data));
+                }
+            }
+        }
+    }
+
+    Some(app_detail)
+}
+
 pub fn get_app_detail_from_apk(app_path: String) -> Option<AppDetail> {
     let path = Path::new(&app_path);
 

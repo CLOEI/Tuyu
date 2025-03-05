@@ -1,7 +1,7 @@
 use tauri::AppHandle;
 use which::which;
 
-use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, run_apktool_command, AppDetail};
+use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, run_apktool_command, AppDetail};
 
 #[tauri::command]
 pub fn extract_app(handle: AppHandle, app_path: String, name: String) {
@@ -35,7 +35,7 @@ pub fn get_app_detail(app_path: String) -> Option<AppDetail> {
         match path.extension() {
             Some(ext) => match ext.to_str().unwrap() {
                 "apk" => return get_app_detail_from_apk(app_path),
-                "xapk" => {},
+                "xapk" => return get_app_detail_from_xapk(app_path),
                 _ => panic!("Not Implemented!")
             }
             None => panic!("Not Implemented!")

@@ -25,6 +25,6 @@ which = "7.0.2"
 zip = "2.2.3"
 serde = "1.0.218"
 base64 = "0.22.1"
-quick-xml = "0.37.2"
 serde_yaml = "0.9.34"
+roxmltree = "0.20.0"
 

@@ -10,7 +10,6 @@
     "opener:default",
     "core:window:allow-start-dragging",
     "core:window:allow-close",
-    "core:window:allow-toggle-maximize",
-    "opener:default"
+    "core:window:allow-toggle-maximize"
   ]
 }

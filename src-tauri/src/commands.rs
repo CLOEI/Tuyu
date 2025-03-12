@@ -1,9 +1,51 @@
-use std::process::Command;
+use std::{process::Command, sync::Mutex};
 
-use tauri::AppHandle;
+use adb_client::{ADBDeviceExt, ADBServer};
+use tauri::{AppHandle, Manager};
 use which::which;
 
-use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, run_java_tool, AppDetail};
+use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, get_scrcpy, run_java_tool, AppDetail};
+
+pub struct AppData {
+    pub adb_server: Mutex<ADBServer>,
+}
+
+#[derive(serde::Serialize)]
+pub struct Device {
+    pub id: String,
+    pub model: String,
+    pub state: String,
+}
+
+#[tauri::command]
+pub fn execute_scrcpy(handle: AppHandle, device_id: String) {
+    let scrcpy = get_scrcpy().expect("scrcpy not found");
+    Command::new(scrcpy)
+        .args(&["-s", &device_id])
+        .spawn()
+        .expect("Failed to start scrcpy");
+}
+
+#[tauri::command]
+pub fn get_adb_devices(handle: AppHandle) -> Vec<Device> {
+    let data = handle.state::<AppData>();
+    let mut adb_server = data.adb_server.lock().unwrap();
+    let devices = adb_server.devices().expect("Can't fetch devices from ADB");
+
+    devices.iter().map(|data| {
+        let id = data.identifier.clone();
+        let mut device = adb_server.get_device_by_name(&id).expect("Can't get device by name");
+        let mut output = Vec::new();
+        device.shell_command(&["getprop", "ro.product.marketname"], &mut output).unwrap();
+        let model = String::from_utf8_lossy(&output).trim().to_string();
+        Device {
+            id,
+            model,
+            state: data.state.to_string()
+            
+        }
+    }).collect::<Vec<Device>>()
+}
 
 #[tauri::command]
 pub fn sign_apk(handle: AppHandle, apk_path: String) {

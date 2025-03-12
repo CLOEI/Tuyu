@@ -25,9 +25,17 @@ fn copy_dir_recursive(src: &Path, dest: &Path) {
         let path = entry.path();
         let dest_path = dest.join(entry.file_name());
 
-        if path.is_dir() {
-            copy_dir_recursive(&path, &dest_path);
-        } else {
+        #[cfg(target_arch = "arm")]
+        if path.is_dir() && path.ends_with("arm") {
+            copy_files(&path, &dest_path);
+        } else if path.is_file() {
+            fs::copy(&path, &dest_path).unwrap();
+        }
+
+        #[cfg(target_arch = "x86_64")]
+        if path.is_dir() && path.ends_with("x86_64") {
+            copy_files(&path, &dest_path);
+        } else if path.is_file() {
             fs::copy(&path, &dest_path).unwrap();
         }
     }

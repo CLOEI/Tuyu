@@ -1,11 +1,12 @@
 import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
 import "./App.css";
 import { Button } from '@/components/ui/button';
-import { Box, Settings, Smartphone, X } from 'lucide-react';
+import { Box, Cast, Settings, Smartphone, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
   SelectContent,
+  SelectItem,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
@@ -43,16 +44,29 @@ type Log = {
   message: string;
 }
 
+type Device = {
+  id: string;
+  model: string;
+  state: string;  
+}
+
 function App() {
   const [appDetail, setAppDetail] = useState<AppDetail | null>(null);
+  const [devices, setDevices] = useState<Device[] | null>(null);
+  const [device, setDevice] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [javaPath, setJavaPath] = useState<string | null>(null);
   const [appPath, setAppPath] = useState<string | null>(null);
   const [aboutOpen, setAboutOpen] = useState(false);
+  const [devicesOpen, setDevicesOpen] = useState(false);
   const [log, setLog] = useState<Log[]>([]);
   const isDragAndDropListenerRegistered = useRef(false);
   const isLogListenerRegistered = useRef(false);
   const logEndRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    invoke<Device[]>("get_adb_devices").then((data) => setDevices(data));
+  }, [])
   
   useEffect(() => {
     let unlistenDragAndDrop: UnlistenFn;
@@ -98,6 +112,14 @@ function App() {
     }
   }, [log]);
 
+  useEffect(() => {
+    if (devicesOpen) {
+      invoke("get_adb_devices").then((data) => {
+        console.log(data);
+      })
+    }
+  }, [devicesOpen])
+
   return (
     <main className='p-1 flex flex-col h-screen'>
       <div className="w-full flex justify-between h-10 flex-shrink-0" onMouseDown={(e) => {
@@ -124,22 +146,37 @@ function App() {
       </div>
       <div className='flex items-center justify-between h-10 flex-shrink-0'>
         <div className='flex items-center space-x-1'>
-          <Select disabled>
+          <Select onValueChange={(val) => setDevice(val)}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Device not connected" />
+              <SelectValue placeholder={(devices && devices.length > 0) ? "Choose a device" : "Device not connected"}/> 
             </SelectTrigger>
-            <SelectContent></SelectContent>
+            <SelectContent>
+              {devices && devices.length > 0 && devices.map((device) => {
+                return (
+                  <SelectItem value={device.id} key={device.id}>{device.model}</SelectItem>
+                )
+              })}
+            </SelectContent>
           </Select>
-          <Button size="icon" variant="ghost">
+          <Button size="icon" variant="ghost" onClick={() => setDevicesOpen(true)} disabled>
             <Smartphone />
           </Button>
-          <Separator orientation='vertical' className='h-full'/>
+          <Separator orientation='vertical' className='h-4'/>
+          <Button size="icon" variant="ghost" disabled={device.length === 0} onClick={() => invoke("execute_scrcpy", { deviceId: device })}>
+            <Cast />
+          </Button>
           <Button variant="ghost" size="sm" className='font-mono'>
             Application
           </Button>
+          <Button variant="ghost" size="sm" className='font-mono' disabled>
+            Folders
+          </Button>
+          <Button variant="ghost" size="sm" className='font-mono' disabled>
+            Shell
+          </Button>
         </div>
         <div>
-          <Button size="icon" variant="ghost">
+          <Button size="icon" variant="ghost" disabled>
             <Settings />
           </Button>
         </div>
@@ -279,9 +316,36 @@ function App() {
                 <li>apksigner by Google</li>
                 <li>apkeditor by REAndroid</li>
                 <li>apktool by iBotPeaches</li>
+                <li>scrcpy by Genymobile</li>
               </ul>
               </div>
             </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction>Close</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={devicesOpen} onOpenChange={(open) => { setDevicesOpen(open) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Devices</AlertDialogTitle>
+            <AlertDialogDescription>
+            {/* <div className='space-y-2'>
+              <span className='text-lg font-bold'>TUYU</span>
+              <span className='text-sm text-muted-foreground'>0.1.0</span>
+              <div className='mt-2'>
+              <span className='text-sm font-semibold'>Dependencies:</span>
+              <ul className='list-disc list-inside text-sm text-muted-foreground'>
+                <li>aapt2 by Google</li>
+                <li>zipalign by Google</li>
+                <li>apksigner by Google</li>
+                <li>apkeditor by REAndroid</li>
+                <li>apktool by iBotPeaches</li>
+              </ul>
+              </div>
+            </div> */}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

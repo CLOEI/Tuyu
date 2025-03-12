@@ -1,12 +1,10 @@
+use std::sync::Mutex;
+
 use adb_client::ADBServer;
 use tauri::Manager;
 
 mod commands;
 mod utils;
-
-struct AppData {
-    adb_server: ADBServer,
-}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -14,8 +12,10 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let mut adb_server = ADBServer::default();
-            adb_server.set_adb_path(Some("/binaries/platform-tools/adb".to_string()));
-            app.manage(AppData { adb_server });
+            adb_server.set_adb_path(utils::get_adb());
+            app.manage(commands::AppData { 
+                adb_server: Mutex::new(adb_server)
+             });
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -26,6 +26,8 @@ pub fn run() {
             commands::compile_app,
             commands::merge_xapk,
             commands::sign_apk,
+            commands::get_adb_devices,
+            commands::execute_scrcpy
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -2,7 +2,7 @@ use std::{fs::File, io::{BufRead, BufReader, Read}, path::Path, process::{Comman
 
 use base64::{engine::general_purpose, Engine};
 use tauri::{AppHandle, Emitter};
-use which::which_in;
+use which::{which, which_in};
 use zip::ZipArchive;
 
 #[derive(Debug, serde::Serialize, Default)]
@@ -19,6 +19,17 @@ pub struct AppDetail {
 
 pub fn get_aapt2() -> Option<String> {
     which_in("aapt2", Some("binaries"), std::env::current_dir().unwrap()).ok().map(|path| path.to_string_lossy().to_string())
+}
+
+pub fn get_adb() -> Option<String> {
+    which_in("adb", Some("binaries"), std::env::current_dir().unwrap()).ok().map(|path| path.to_string_lossy().to_string())
+}
+
+pub fn get_scrcpy() -> Option<String> {
+    match which("scrcpy") {
+        Ok(path) => Some(path.to_string_lossy().to_string()),
+        Err(_) => which_in("scrcpy", Some("binaries"), std::env::current_dir().unwrap()).ok().map(|path| path.to_string_lossy().to_string())
+    }
 }
 
 pub fn get_app_detail_from_xapk(app_path: String) -> Option<AppDetail> {

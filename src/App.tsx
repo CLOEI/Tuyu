@@ -25,6 +25,7 @@ import {
 import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ScrollArea } from './components/ui/scroll-area';
+import Folders from './Folders';
 
 const appWindow = getCurrentWindow();
 
@@ -60,6 +61,7 @@ function App() {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [devicesOpen, setDevicesOpen] = useState(false);
   const [log, setLog] = useState<Log[]>([]);
+  const [currentNav, setCurrentNav] = useState("utils");
   const isDragAndDropListenerRegistered = useRef(false);
   const isLogListenerRegistered = useRef(false);
   const logEndRef = useRef<HTMLDivElement>(null);
@@ -165,13 +167,16 @@ function App() {
           <Button size="icon" variant="ghost" disabled={device.length === 0} onClick={() => invoke("execute_scrcpy", { deviceId: device })}>
             <Cast />
           </Button>
-          <Button variant="ghost" size="sm" className='font-mono'>
-            Application
+          <Button variant="ghost" size="sm" className='font-mono' onClick={() => setCurrentNav("utils")}>
+            Utils
           </Button>
-          <Button variant="ghost" size="sm" className='font-mono' disabled>
+          <Button variant="ghost" size="sm" className='font-mono' onClick={() => setCurrentNav("folders")} disabled={device.length === 0}>
             Folders
           </Button>
-          <Button variant="ghost" size="sm" className='font-mono' disabled>
+          <Button variant="ghost" size="sm" className='font-mono' onClick={() => setCurrentNav("logcat")} disabled={device.length === 0}>
+            Logcat
+          </Button>
+          <Button variant="ghost" size="sm" className='font-mono' onClick={() => setCurrentNav("shell")} disabled={device.length === 0}>
             Shell
           </Button>
         </div>
@@ -182,108 +187,113 @@ function App() {
         </div>
       </div>
       <Separator className='mt-1'/>
-      {!appDetail ? (
-        <div className='h-full flex-1 flex items-center justify-center'>
-          <div className='flex flex-col items-center'>
-            {loading ? (
-              <>
-                <Box size={100} />
-                <p className='text-muted-foreground'>Checking binaries...</p>
-              </>
-            ) : (
-              <>
+      {currentNav == "utils" && (
+        <>
+          {!appDetail ? (
+            <div className='h-full flex-1 flex items-center justify-center'>
+              <div className='flex flex-col items-center'>
+                {loading ? (
                   <>
-                    <FaAndroid size={100} />
-                    <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
+                    <Box size={100} />
+                    <p className='text-muted-foreground'>Checking binaries...</p>
                   </>
-              </>
-            )}
-          </div>
-        </div>
-        ) : (
-          <div className='grid grid-cols-[50%,50%] w-full h-full'>
-            <div>
-              {appDetail.icon_base64 && (
-                <img src={`data:image/png;base64,${appDetail.icon_base64}`} alt="App Icon" className='w-16 h-16 mr-4 rounded-md'/>
-              )}
-              <div className='flex flex-col space-y-2'>
-                <div className='grid grid-cols-2 gap-4'>
-                  <div>
-                    <p className='font-semibold'>Name:</p>
-                    <p>{appDetail.name}</p>
-                  </div>
-                  <div>
-                    <p className='font-semibold'>Package Name:</p>
-                    <p>{appDetail.package_name}</p>
-                  </div>
-                </div>
-                <div className='grid grid-cols-2 gap-4'>
-                  <div>
-                    <p className='font-semibold'>Min SDK:</p>
-                    <p>{appDetail.min_sdk}</p>
-                  </div>
-                  <div>
-                    <p className='font-semibold'>Target SDK:</p>
-                    <p>{appDetail.target_sdk}</p>
-                  </div>
-                </div>
-                <div className='grid grid-cols-2 gap-4'>
-                  <div>
-                    <p className='font-semibold'>Armeabi-v7a:</p>
-                    <p>{appDetail.is_32bit ? "Yes" : "No"}</p>
-                  </div>
-                  <div>
-                    <p className='font-semibold'>Arm64-v8a:</p>
-                    <p>{appDetail.is_64bit ? "Yes" : "No"}</p>
-                  </div>
-                </div>
-                <div>
-                  <p className='font-semibold'>Version:</p>
-                  <p>{appDetail.version}</p>
-                </div>
-              </div>
-              <div className='mt-4 flex flex-wrap gap-2'>
-                <Button onClick={() => {
-                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting decompilation..." }]);
-                  invoke("extract_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
-                 }} disabled={!(appPath?.includes(".apk") || !appPath?.includes(".xapk") && appPath?.includes(".apk"))}>
-                  Decompile
-                </Button>
-                <Button onClick={() => {
-                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting compilation..." }]);
-                  invoke("compile_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
-                }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
-                  Compile
-                </Button>
-                <Button onClick={() => { 
-                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting signing..." }]);
-                  invoke("sign_apk", { apkPath: appPath })
-                 }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
-                  Sign
-                </Button>
-                <Button onClick={() => { 
-                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting merge..." }]);
-                  invoke("merge_xapk", { xapkPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
-                 }} disabled={!(appPath?.includes(".xapk"))}>
-                  Merge xapk to apk
-                </Button>
-                <Button onClick={() => { console.log("Installing...") }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
-                  Install
-                </Button>
+                ) : (
+                  <>
+                      <>
+                        <FaAndroid size={100} />
+                        <p className='text-muted-foreground'>Drag and drop folder, apk or xapk here</p>
+                      </>
+                  </>
+                )}
               </div>
             </div>
-            <ScrollArea className="h-[calc(100vh-5rem-1px-0.50rem)] w-full border border-l-1 px-2">
-              {log.map((log, index) => (
-                <div key={index} className='grid grid-cols-[auto_auto_1fr] gap-x-2 items-start'>
-                  <span className='text-muted-foreground whitespace'>[{log.time}] </span>
-                  <span className='break-all'>{log.message}</span>
+            ) : (
+              <div className='grid grid-cols-[50%,50%] w-full h-full'>
+                <div>
+                  {appDetail.icon_base64 && (
+                    <img src={`data:image/png;base64,${appDetail.icon_base64}`} alt="App Icon" className='w-16 h-16 mr-4 rounded-md'/>
+                  )}
+                  <div className='flex flex-col space-y-2'>
+                    <div className='grid grid-cols-2 gap-4'>
+                      <div>
+                        <p className='font-semibold'>Name:</p>
+                        <p>{appDetail.name}</p>
+                      </div>
+                      <div>
+                        <p className='font-semibold'>Package Name:</p>
+                        <p>{appDetail.package_name}</p>
+                      </div>
+                    </div>
+                    <div className='grid grid-cols-2 gap-4'>
+                      <div>
+                        <p className='font-semibold'>Min SDK:</p>
+                        <p>{appDetail.min_sdk}</p>
+                      </div>
+                      <div>
+                        <p className='font-semibold'>Target SDK:</p>
+                        <p>{appDetail.target_sdk}</p>
+                      </div>
+                    </div>
+                    <div className='grid grid-cols-2 gap-4'>
+                      <div>
+                        <p className='font-semibold'>Armeabi-v7a:</p>
+                        <p>{appDetail.is_32bit ? "Yes" : "No"}</p>
+                      </div>
+                      <div>
+                        <p className='font-semibold'>Arm64-v8a:</p>
+                        <p>{appDetail.is_64bit ? "Yes" : "No"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className='font-semibold'>Version:</p>
+                      <p>{appDetail.version}</p>
+                    </div>
+                  </div>
+                  <div className='mt-4 flex flex-wrap gap-2'>
+                    <Button onClick={() => {
+                      setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting decompilation..." }]);
+                      invoke("extract_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                    }} disabled={!(appPath?.includes(".apk") || !appPath?.includes(".xapk") && appPath?.includes(".apk"))}>
+                      Decompile
+                    </Button>
+                    <Button onClick={() => {
+                      setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting compilation..." }]);
+                      invoke("compile_app", { appPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                    }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
+                      Compile
+                    </Button>
+                    <Button onClick={() => { 
+                      setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting signing..." }]);
+                      invoke("sign_apk", { apkPath: appPath })
+                    }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
+                      Sign
+                    </Button>
+                    <Button onClick={() => { 
+                      setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting merge..." }]);
+                      invoke("merge_xapk", { xapkPath: appPath, name: `${appDetail.name}-${appDetail.version}` })
+                    }} disabled={!(appPath?.includes(".xapk"))}>
+                      Merge xapk to apk
+                    </Button>
+                    <Button onClick={() => { console.log("Installing...") }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
+                      Install
+                    </Button>
+                  </div>
                 </div>
-              ))}
-              <div ref={logEndRef} />
-            </ScrollArea>
-          </div>
-        )
-      }
+                <ScrollArea className="h-[calc(100vh-5rem-1px-0.50rem)] w-full border border-l-1 px-2">
+                  {log.map((log, index) => (
+                    <div key={index} className='grid grid-cols-[auto_auto_1fr] gap-x-2 items-start'>
+                      <span className='text-muted-foreground whitespace'>[{log.time}] </span>
+                      <span className='break-all'>{log.message}</span>
+                    </div>
+                  ))}
+                  <div ref={logEndRef} />
+                </ScrollArea>
+              </div>
+            )
+          }
+        </>
+      )}
+      {currentNav == "folders" && <Folders currentDevice={device}/>}
       <AlertDialog open={loading == false && javaPath == null}>
         <AlertDialogContent>
           <AlertDialogHeader>

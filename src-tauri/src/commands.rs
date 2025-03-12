@@ -1,4 +1,4 @@
-use std::{process::Command, sync::Mutex};
+use std::{process::{Command, Output}, sync::Mutex};
 
 use adb_client::{ADBDeviceExt, ADBServer};
 use tauri::{AppHandle, Manager};
@@ -15,6 +15,18 @@ pub struct Device {
     pub id: String,
     pub model: String,
     pub state: String,
+}
+
+#[tauri::command]
+pub fn get_folders(handle: AppHandle, device_id: String, path: String) -> Vec<String> {
+    let data = handle.state::<AppData>();
+    let mut adb_server = data.adb_server.lock().unwrap();
+    let mut device = adb_server.get_device_by_name(&device_id).expect("Can't get device by name");
+    let mut output = Vec::new();
+    device.shell_command(&["ls", &path], &mut output).unwrap();
+    let folder_data = String::from_utf8_lossy(&output);
+    println!("{}", folder_data);
+    folder_data.lines().map(|line| line.to_string()).collect::<Vec<String>>()
 }
 
 #[tauri::command]

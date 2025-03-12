@@ -218,7 +218,10 @@ function App() {
                 }} disabled={!!(appPath?.includes(".apk") || appPath?.includes(".xapk"))}>
                   Compile
                 </Button>
-                <Button onClick={() => { console.log("Signing...") }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
+                <Button onClick={() => { 
+                  setLog((prev) => [...prev, { level: "Info", time: new Date().toLocaleTimeString(), message: "Starting signing..." }]);
+                  invoke("sign_apk", { apkPath: appPath })
+                 }} disabled={!(appPath?.includes(".apk") && !appPath?.includes(".xapk"))}>
                   Sign
                 </Button>
                 <Button onClick={() => { 

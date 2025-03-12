@@ -1,7 +1,20 @@
+use std::process::Command;
+
 use tauri::AppHandle;
 use which::which;
 
 use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, run_java_tool, AppDetail};
+
+#[tauri::command]
+pub fn sign_apk(handle: AppHandle, apk_path: String) {
+    run_java_tool(
+        handle,
+        "apksigner",
+        &["sign", "--ks-key-alias", "tuyu", "--ks-pass", "pass:tuyu123", "--ks", "binaries/tuyu.keystore", &apk_path],
+        "App signed successfully".to_string(),
+        "Failed to sign app".to_string(),
+    );
+}
 
 #[tauri::command]
 pub fn merge_xapk(handle: AppHandle, xapk_path: String, name: String) {

@@ -27,4 +27,5 @@ serde = "1.0.218"
 base64 = "0.22.1"
 serde_yaml = "0.9.34"
 roxmltree = "0.20.0"
+adb_client = { git = "https://github.com/CLOEI/adb_client.git" }
 

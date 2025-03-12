@@ -9,4 +9,3 @@ Android ADB client & utilities
 
 ### Requirement
 - JRE
-- ADB

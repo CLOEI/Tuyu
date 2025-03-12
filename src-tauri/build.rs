@@ -1,4 +1,38 @@
-use std::{env, fs, path::PathBuf};
+use std::{env, fs, path::{Path, PathBuf}};
+
+fn copy_files(src: &Path, dest: &Path) {
+    if !dest.exists() {
+        fs::create_dir_all(dest).unwrap();
+    }
+
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+
+        if path.is_file() {
+            fs::copy(&path, dest.join(entry.file_name())).unwrap();
+        }
+    }
+}
+
+fn copy_dir_recursive(src: &Path, dest: &Path) {
+    if !dest.exists() {
+        fs::create_dir_all(dest).unwrap();
+    }
+
+    for entry in fs::read_dir(src).unwrap() {
+        let entry = entry.unwrap();
+        let path = entry.path();
+        let dest_path = dest.join(entry.file_name());
+
+        if path.is_dir() {
+            copy_dir_recursive(&path, &dest_path);
+        } else {
+            fs::copy(&path, &dest_path).unwrap();
+        }
+    }
+}
+
 
 fn main() {
     let target_os = env::var("CARGO_CFG_TARGET_OS").unwrap();
@@ -8,24 +42,12 @@ fn main() {
     }
     fs::create_dir_all(&dest).unwrap();
 
-    for entry in fs::read_dir("../binaries").unwrap() {
-        let entry = entry.unwrap();
-        let is_dir = entry.file_type().unwrap().is_dir();
-        if is_dir && entry.file_name().into_string().unwrap() == target_os {
-            for entry in fs::read_dir(entry.path()).unwrap() {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                let file_name = entry.file_name();
-                fs::copy(path, dest.join(file_name)).unwrap();
-            }
-        }
-        if is_dir {
-            continue;
-        } else {
-            let path = entry.path();
-            let file_name = entry.file_name();
-            fs::copy(path, dest.join(file_name)).unwrap();
-        }
+    let source_dir = PathBuf::from("../binaries");
+    let os_specific_dir = source_dir.join(&target_os);
+    copy_files(&source_dir, &dest);
+
+    if os_specific_dir.exists() {
+        copy_dir_recursive(&os_specific_dir, &dest);
     }
 
     tauri_build::build()

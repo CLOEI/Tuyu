@@ -28,7 +28,7 @@ pub fn run() {
             commands::sign_apk,
             commands::get_adb_devices,
             commands::execute_scrcpy,
-            commands::get_folders
+            commands::get_list
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

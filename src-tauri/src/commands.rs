@@ -18,19 +18,18 @@ pub struct Device {
 }
 
 #[tauri::command]
-pub fn get_folders(handle: AppHandle, device_id: String, path: String) -> Vec<String> {
+pub fn get_list(handle: AppHandle, device_id: String, path: String) -> Vec<String> {
     let data = handle.state::<AppData>();
     let mut adb_server = data.adb_server.lock().unwrap();
     let mut device = adb_server.get_device_by_name(&device_id).expect("Can't get device by name");
     let mut output = Vec::new();
-    device.shell_command(&["ls", &path], &mut output).unwrap();
+    device.shell_command(&["ls", "-1", "-F", &format!("\"{}\"", &path)], &mut output).unwrap();
     let folder_data = String::from_utf8_lossy(&output);
-    println!("{}", folder_data);
     folder_data.lines().map(|line| line.to_string()).collect::<Vec<String>>()
 }
 
 #[tauri::command]
-pub fn execute_scrcpy(handle: AppHandle, device_id: String) {
+pub fn execute_scrcpy(device_id: String) {
     let scrcpy = get_scrcpy().expect("scrcpy not found");
     Command::new(scrcpy)
         .args(&["-s", &device_id])
@@ -48,8 +47,10 @@ pub fn get_adb_devices(handle: AppHandle) -> Vec<Device> {
         let id = data.identifier.clone();
         let mut device = adb_server.get_device_by_name(&id).expect("Can't get device by name");
         let mut output = Vec::new();
-        device.shell_command(&["getprop", "ro.product.marketname"], &mut output).unwrap();
-        let model = String::from_utf8_lossy(&output).trim().to_string();
+        let mut model = "".to_string();
+        if device.shell_command(&["getprop", "ro.product.marketname"], &mut output).is_ok() {
+            model = String::from_utf8_lossy(&output).trim().to_string();
+        }
         Device {
             id,
             model,

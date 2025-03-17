@@ -4,7 +4,7 @@ use adb_client::{ADBDeviceExt, ADBServer};
 use tauri::{AppHandle, Manager};
 use which::which;
 
-use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, get_scrcpy, run_java_tool, AppDetail};
+use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, get_scrcpy, parse_ls_output, run_java_tool, AppDetail, Directory};
 
 pub struct AppData {
     pub adb_server: Mutex<ADBServer>,
@@ -18,14 +18,14 @@ pub struct Device {
 }
 
 #[tauri::command]
-pub fn get_list(handle: AppHandle, device_id: String, path: String) -> Vec<String> {
+pub fn get_list(handle: AppHandle, device_id: String, path: String) -> Vec<Directory> {
     let data = handle.state::<AppData>();
     let mut adb_server = data.adb_server.lock().unwrap();
     let mut device = adb_server.get_device_by_name(&device_id).expect("Can't get device by name");
     let mut output = Vec::new();
-    device.shell_command(&["ls", "-1", "-F", &format!("\"{}\"", &path)], &mut output).unwrap();
+    device.shell_command(&["ls", "-1", "-l", &format!("\"{}\"", &path)], &mut output).unwrap();
     let folder_data = String::from_utf8_lossy(&output);
-    folder_data.lines().map(|line| line.to_string()).collect::<Vec<String>>()
+    parse_ls_output(&folder_data)
 }
 
 #[tauri::command]
@@ -48,12 +48,18 @@ pub fn get_adb_devices(handle: AppHandle) -> Vec<Device> {
         let mut device = adb_server.get_device_by_name(&id).expect("Can't get device by name");
         let mut output = Vec::new();
         let mut model = "".to_string();
+        let mut product_device = "".to_string();
         if device.shell_command(&["getprop", "ro.product.marketname"], &mut output).is_ok() {
             model = String::from_utf8_lossy(&output).trim().to_string();
         }
+        output.clear();
+        if device.shell_command(&["getprop", "ro.product.product.device"], &mut output).is_ok() {
+            product_device = String::from_utf8_lossy(&output).trim().to_string();
+        }
+
         Device {
             id,
-            model,
+            model: if model.is_empty() { product_device.clone() } else { model },
             state: data.state.to_string()
             
         }

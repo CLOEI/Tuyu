@@ -17,6 +17,13 @@ pub struct AppDetail {
     icon_base64: Option<String>,
 }
 
+#[derive(Debug, serde::Serialize)]
+pub struct Directory {
+    pub name: String,
+    pub r#type: u16, // 0 = file, 1 = folder, 2 = folder symlink, 3 = file symlink
+    pub link_to: String,
+}
+
 pub fn get_aapt2() -> Option<String> {
     which_in("aapt2", Some("binaries"), std::env::current_dir().unwrap()).ok().map(|path| path.to_string_lossy().to_string())
 }
@@ -231,4 +238,33 @@ pub fn run_java_tool(
             handle.emit("log", error_msg).unwrap();
         }
     });
+}
+
+pub fn parse_ls_output(output: &str) -> Vec<Directory> {
+    let mut directories = Vec::new();
+
+    for line in output.lines() {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        if parts.len() == 2 {
+            continue; // Skip total
+        }
+        let mut name = parts.last().unwrap().to_string();
+        let link_to = parts.last().unwrap().to_string();
+        let mut file_type = 0;
+
+        if parts[0].starts_with("d") {
+            file_type = 1;
+        } else if parts[0].starts_with("l") {
+            if parts[parts.len() - 2] == "->" {
+                file_type = 2;
+                name = parts[parts.len() - 3].to_string();
+            } else {
+                file_type = 3;
+            }
+        }
+        
+        directories.push(Directory { r#type: file_type, name, link_to });
+    }
+
+    directories
 }

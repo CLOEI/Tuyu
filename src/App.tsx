@@ -26,6 +26,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { ScrollArea } from './components/ui/scroll-area';
 import Folders from './Folders';
+import Shell from './Shell';
 
 const appWindow = getCurrentWindow();
 
@@ -67,7 +68,10 @@ function App() {
   const logEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    invoke<Device[]>("get_adb_devices").then((data) => setDevices(data));
+    invoke<Device[]>("get_adb_devices").then((data) => {
+      setDevices(data);
+      setDevice(data[0].id);
+    });
   }, [])
   
   useEffect(() => {
@@ -116,8 +120,8 @@ function App() {
 
   useEffect(() => {
     if (devicesOpen) {
-      invoke("get_adb_devices").then((data) => {
-        console.log(data);
+      invoke<Device[]>("get_adb_devices").then((data) => {
+        setDevices(data);
       })
     }
   }, [devicesOpen])
@@ -148,7 +152,7 @@ function App() {
       </div>
       <div className='flex items-center justify-between h-10 flex-shrink-0'>
         <div className='flex items-center space-x-1'>
-          <Select onValueChange={(val) => setDevice(val)}>
+          <Select onValueChange={(val) => setDevice(val)} value={device}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder={(devices && devices.length > 0) ? "Choose a device" : "Device not connected"}/> 
             </SelectTrigger>
@@ -294,6 +298,7 @@ function App() {
         </>
       )}
       {currentNav == "folders" && <Folders currentDevice={device}/>}
+      {currentNav == "shell" && <Shell currentDevice={device}/>}
       <AlertDialog open={loading == false && javaPath == null}>
         <AlertDialogContent>
           <AlertDialogHeader>

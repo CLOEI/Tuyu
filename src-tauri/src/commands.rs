@@ -1,4 +1,4 @@
-use std::{process::{Command, Output}, sync::Mutex};
+use std::{io::{BufRead, BufReader, Read, Write}, os, process::{Command, Output, Stdio}, sync::{mpsc, Arc, Mutex}, thread};
 
 use adb_client::{ADBDeviceExt, ADBServer};
 use tauri::{AppHandle, Manager};
@@ -15,6 +15,36 @@ pub struct Device {
     pub id: String,
     pub model: String,
     pub state: String,
+}
+
+#[tauri::command]
+pub fn hook_shell(handle: AppHandle, device_id: String) {
+    let adb = get_adb().expect("adb not found");
+    let mut child = Command::new(adb)
+        .arg("shell")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("Failed to start ADB shell");
+
+    let mut stdout = child.stdout.take().expect("Failed to capture stdout");
+    let mut stdin = child.stdin.take().expect("Failed to capture stdin");
+    
+    stdin.write("echo test\n".as_bytes()).expect("Failed to write to stdin");
+
+    thread::spawn(move || {
+        let mut buffer = vec![0; 1024];
+        loop {
+            match stdout.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let output = String::from_utf8_lossy(&buffer[..n]).to_string();
+                    println!("{}", output);
+                }
+                Err(_) => break,
+            }
+        }
+    });
 }
 
 #[tauri::command]

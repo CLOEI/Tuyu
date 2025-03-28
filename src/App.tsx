@@ -1,5 +1,6 @@
 import { getCurrentWindow, PhysicalPosition } from '@tauri-apps/api/window';
 import "./App.css";
+import "./xterm.css";
 import { Button } from '@/components/ui/button';
 import { Box, Cast, Settings, Smartphone, X } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';

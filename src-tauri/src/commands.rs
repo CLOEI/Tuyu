@@ -1,7 +1,7 @@
 use std::{io::{BufRead, BufReader, Read, Write}, os, process::{Command, Output, Stdio}, sync::{mpsc, Arc, Mutex}, thread};
 
 use adb_client::{ADBDeviceExt, ADBServer};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use which::which;
 
 use crate::utils::{get_app_detail_from_apk, get_app_detail_from_dir, get_app_detail_from_xapk, get_scrcpy, parse_ls_output, run_java_tool, AppDetail, Directory};
@@ -17,34 +17,56 @@ pub struct Device {
     pub state: String,
 }
 
+struct Reader {
+    device_name: String,
+    app_handle: AppHandle,
+}
+struct Writer {}
+impl Read for Reader {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        println!("{}:{} $ {}", self.device_name, "/", String::from_utf8_lossy(buf));
+        self.app_handle.emit("shell_output", buf).unwrap();
+        Ok(0)
+    }
+}
+
+impl Write for Writer {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        Ok(0)
+    }
+
+    fn write_all(&mut self, mut buf: &[u8]) -> std::io::Result<()> {
+        println!("{}", String::from_utf8_lossy(buf));
+        Ok(())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 #[tauri::command]
 pub fn hook_shell(handle: AppHandle, device_id: String) {
-    let adb = get_adb().expect("adb not found");
-    let mut child = Command::new(adb)
-        .arg("shell")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to start ADB shell");
+    let mut device = handle.state::<AppData>().adb_server.lock().unwrap().get_device_by_name(&device_id).expect("Can't get device by name");
+    let mut output = Vec::new();
+    device.shell_command(&["getprop", "ro.product.product.device"], &mut output).unwrap();
+    let device_name = String::from_utf8_lossy(&output).trim().to_string();
 
-    let mut stdout = child.stdout.take().expect("Failed to capture stdout");
-    let mut stdin = child.stdin.take().expect("Failed to capture stdin");
-    
-    stdin.write("echo test\n".as_bytes()).expect("Failed to write to stdin");
+    let mut reader = Reader {
+        device_name: device_name.clone(),
+        app_handle: handle.clone(),
+    };
+    let writer = Writer {};
+    device.shell(&mut reader, Box::new(writer)).expect("Shell command failed");
+}
 
-    thread::spawn(move || {
-        let mut buffer = vec![0; 1024];
-        loop {
-            match stdout.read(&mut buffer) {
-                Ok(0) => break,
-                Ok(n) => {
-                    let output = String::from_utf8_lossy(&buffer[..n]).to_string();
-                    println!("{}", output);
-                }
-                Err(_) => break,
-            }
-        }
-    });
+#[tauri::command]
+pub fn pwd(handle: AppHandle, device_id: String) -> String {
+    let mut device = handle.state::<AppData>().adb_server.lock().unwrap().get_device_by_name(&device_id).expect("Can't get device by name");
+    let mut output = Vec::new();
+    device.shell_command(&["pwd"], &mut output).unwrap();
+
+    String::from_utf8_lossy(&output).trim().to_string()
 }
 
 #[tauri::command]
